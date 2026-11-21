@@ -1,0 +1,1 @@
+# Modelo de log unificado, quero ter um log geral para todas as coisas que acontecerem no sistema, mas também um log unico para cada classe para facilitar a leitura, se possivel também crie repartições baseado no tipo (logs para a memoria, para os models, para o core etc)

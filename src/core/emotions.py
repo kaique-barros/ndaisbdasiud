@@ -1,0 +1,1 @@
+## Gerencia as emoções, decaimento etc, as emoções vão seguir o modelo da roda de Roda das Emoções de Plutchik, com diades primarias secundarias e terciarias, vamos fazer um dicionário delasem emotions descriptions e usar a equação de erosão para gerenciar o decaimento das emoções 

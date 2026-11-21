@@ -1,0 +1,1 @@
+# graph-rag, é o conhecimento da persona, qualquer coisa que ela aprender deve ser inserido aqui para lembrar futuramente, se possivel coloque também um timestamp para quando foi criado e a ultima vez que foi acessado, essa classe só chama o graph-rag e personaliza a consulta / resposta a consulta mesmo deve ser implementada na classe especifica.
