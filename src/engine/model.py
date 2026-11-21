@@ -3,12 +3,16 @@
 # O conteúdo dos prompts é logado pelas classes de core/; aqui só vão eventos de conexão e erros.
 from __future__ import annotations
 
+import os
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Mapping, Sequence
 
 from src.utils.bridge import ChatResponse, OpenAICompatibleBridge
+from src.utils.config import Config
 from src.utils.logger import get_logger
+
+DEFAULT_PROVIDER = "ollama"
 
 Messages = Sequence[Mapping[str, str]]
 
@@ -57,14 +61,30 @@ class ChatModel(Model):
         self.bridge = bridge
 
     @classmethod
+    def from_name(cls, name: str, config: Config,
+                  bridge: OpenAICompatibleBridge | None = None) -> "ChatModel":
+        """Monta o modelo de um componente (ex.: "actor") a partir das configs.
+        Provider: variável PERSONA_PROVIDER > campo "provider" do engine > "ollama".
+        Assim a mesma config roda local (ollama) ou na nuvem (groq) trocando só a variável."""
+        engine_cfg = config.engine(name)
+        provider = os.environ.get("PERSONA_PROVIDER") or engine_cfg.get("provider") or DEFAULT_PROVIDER
+        provider_cfg = {"name": provider, **config.provider(provider)}
+        return cls.from_configs(name, engine_cfg, provider_cfg, bridge)
+
+    @classmethod
     def from_configs(cls, name: str, engine_cfg: Mapping[str, Any],
                      provider_cfg: Mapping[str, Any],
                      bridge: OpenAICompatibleBridge | None = None) -> "ChatModel":
-        """engine_cfg: .configs/engine/<name>.json; provider_cfg: .configs/providers/<provider>.json."""
-        if "model" not in engine_cfg:
-            raise ValueError(f"config de engine '{name}' sem o campo 'model'")
+        """Modelo usado, por prioridade: engine.models[<provider>] > engine.model >
+        provider.default_model."""
+        provider = provider_cfg.get("name", "")
+        model_id = ((engine_cfg.get("models") or {}).get(provider)
+                    or engine_cfg.get("model") or provider_cfg.get("default_model"))
+        if not model_id:
+            raise ValueError(f"nenhum modelo definido para '{name}' (provider '{provider}'): "
+                             "use 'models'/'model' no engine ou 'default_model' no provider")
         bridge = bridge or OpenAICompatibleBridge.from_provider_config(provider_cfg)
-        return cls(name, engine_cfg["model"], bridge, engine_cfg)
+        return cls(name, model_id, bridge, engine_cfg)
 
     async def _complete(self, messages: Messages, params: dict[str, Any]) -> ChatResponse:
         return await self.bridge.chat(self.model_id, messages, **params)

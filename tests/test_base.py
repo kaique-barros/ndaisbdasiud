@@ -65,7 +65,8 @@ class ConfigTest(unittest.TestCase):
     def test_loads_repo_configs(self):
         cfg = Config(Paths(REPO))
         self.assertEqual(cfg.engine("flash_memory")["k"], 20)
-        self.assertEqual(cfg.provider("example")["name"], "example")
+        self.assertEqual(cfg.provider("groq")["api_key_env"], "GROQ_API_KEY")
+        self.assertEqual(cfg.provider("ollama")["base_url"], "http://localhost:11434/v1")
         self.assertEqual(cfg.engine("emotions_description"), {})  # vazio é tolerado
         self.assertEqual(cfg.persona_parameters("persona_example")["language"], "pt-BR")
         with self.assertRaises(ConfigError):

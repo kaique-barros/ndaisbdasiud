@@ -7,7 +7,7 @@ from unittest import mock
 
 from src.engine.model import ChatModel, Model
 from src.utils.bridge import BridgeError, OpenAICompatibleBridge
-from src.utils.config import Config, Paths
+from src.utils.config import Config, Paths, load_env_file
 from src.utils.logger import setup_logging, shutdown_logging
 
 REPO = Path(__file__).resolve().parents[1]
@@ -112,19 +112,62 @@ class ModelTest(LoggedTestCase):
         self.assertEqual(t.calls[1][2]["temperature"], 0.1)  # override por chamada
         self.assertNotIn("foo", t.calls[1][2])
 
-    async def test_from_repo_configs(self):
-        cfg = Config(Paths(REPO))
+    async def _repo_model(self, provider_env, **env):
+        cfg = Config(Paths(REPO), load_env=False)
         t = FakeTransport((200, ok_body()))
-        bridge = OpenAICompatibleBridge.from_provider_config(cfg.provider("example"), transport=t)
-        model = ChatModel.from_configs("actor", cfg.engine("actor"), cfg.provider("example"), bridge)
+        with mock.patch.dict(os.environ, {"PERSONA_PROVIDER": provider_env, **env}):
+            provider = os.environ["PERSONA_PROVIDER"]
+            bridge = OpenAICompatibleBridge.from_provider_config(cfg.provider(provider),
+                                                                 transport=t)
+            model = ChatModel.from_name("actor", cfg, bridge)
         await model.ask("oi")
-        self.assertEqual(t.calls[0][2]["model"], cfg.engine("actor")["model"])
+        return t.calls[0]
 
-    def test_missing_model_field_and_abstract(self):
+    async def test_switch_local_ollama(self):
+        url, headers, payload, _ = await self._repo_model("ollama")
+        self.assertEqual(url, "http://localhost:11434/v1/chat/completions")
+        self.assertEqual(payload["model"], "llama3.2")
+        self.assertNotIn("Authorization", headers)
+
+    async def test_switch_cloud_groq(self):
+        url, headers, payload, _ = await self._repo_model("groq", GROQ_API_KEY="gsk_test")
+        self.assertEqual(url, "https://api.groq.com/openai/v1/chat/completions")
+        self.assertEqual(payload["model"], "llama-3.3-70b-versatile")
+        self.assertEqual(headers["Authorization"], "Bearer gsk_test")
+
+    def test_default_provider_is_ollama(self):
+        env = {k: v for k, v in os.environ.items() if k != "PERSONA_PROVIDER"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            model = ChatModel.from_name("actor", Config(Paths(REPO), load_env=False))
+        self.assertEqual((model.model_id, model.bridge.base_url),
+                         ("llama3.2", "http://localhost:11434/v1"))
+
+    def test_model_resolution_priority(self):
+        prov = {"name": "groq", "base_url": "http://h", "default_model": "padrao"}
+        pick = lambda eng: ChatModel.from_configs("x", eng, prov).model_id
+        self.assertEqual(pick({}), "padrao")
+        self.assertEqual(pick({"model": "fixo"}), "fixo")
+        self.assertEqual(pick({"model": "fixo", "models": {"groq": "especifico"}}), "especifico")
+        self.assertEqual(pick({"models": {"ollama": "outro"}}), "padrao")
+
+    def test_missing_model_and_abstract(self):
         with self.assertRaises(ValueError):
             ChatModel.from_configs("x", {}, {"base_url": "http://h"})
         with self.assertRaises(TypeError):
             Model("x")  # abstrata
+
+
+class EnvFileTest(unittest.TestCase):
+    def test_load_env_file_does_not_override(self):
+        with TemporaryDirectory() as tmp:
+            p = Path(tmp) / ".env"
+            p.write_text('# c\nA_TEST_VAR="valor"\nB_TEST_VAR=2\nsem_igual\n', encoding="utf-8")
+            with mock.patch.dict(os.environ, {"B_TEST_VAR": "ja_existe"}):
+                os.environ.pop("A_TEST_VAR", None)
+                load_env_file(p)
+                self.assertEqual(os.environ["A_TEST_VAR"], "valor")
+                self.assertEqual(os.environ["B_TEST_VAR"], "ja_existe")
+            os.environ.pop("A_TEST_VAR", None)
 
 
 if __name__ == "__main__":

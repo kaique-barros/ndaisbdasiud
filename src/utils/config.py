@@ -62,11 +62,25 @@ def load_json(path: Path) -> dict[str, Any]:
     return data
 
 
+def load_env_file(path: Path) -> None:
+    """Carrega linhas CHAVE=valor de um .env para os.environ, sem sobrescrever o que já existe."""
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+
+
 class Config:
     """Acesso às configs em .configs/ (engine, providers, prompts, appearance)."""
 
-    def __init__(self, paths: Paths | None = None) -> None:
+    def __init__(self, paths: Paths | None = None, load_env: bool = True) -> None:
         self.paths = paths or Paths(project_root())
+        if load_env:
+            load_env_file(self.paths.root / ".env")
 
     def engine(self, name: str) -> dict[str, Any]:
         return load_json(self.paths.configs / "engine" / f"{name}.json")
