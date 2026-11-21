@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Dados gerados em execução
+.logs/
+.data/global.db*
+.data/personas/*/memories/
+*.db
+*.db-wal
+*.db-shm
+
+# Segredos
+.env

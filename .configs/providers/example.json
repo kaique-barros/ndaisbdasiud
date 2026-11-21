@@ -1,0 +1,6 @@
+{
+  "name": "example",
+  "base_url": "http://localhost:8000/v1",
+  "api_key_env": "EXAMPLE_API_KEY",
+  "timeout_s": 60
+}
