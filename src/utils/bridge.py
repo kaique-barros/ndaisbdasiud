@@ -83,11 +83,27 @@ class OpenAICompatibleBridge:
                   **params: Any) -> ChatResponse:
         payload = {"model": model, "messages": list(messages),
                    **{k: v for k, v in params.items() if v is not None}}
+        return self._parse(self._post("/chat/completions", payload))
+
+    def embed_sync(self, model: str, texts: Sequence[str]) -> list[list[float]]:
+        """Embeddings (/embeddings, formato OpenAI). Na ordem dos textos."""
+        raw = self._post("/embeddings", {"model": model, "input": list(texts)})
+        try:
+            items = sorted(json.loads(raw)["data"], key=lambda d: d["index"])
+            vectors = [[float(x) for x in item["embedding"]] for item in items]
+        except (ValueError, KeyError, TypeError) as exc:
+            raise BridgeError(f"resposta de embeddings inesperada: {exc}") from exc
+        if len(vectors) != len(texts):
+            raise BridgeError("o provedor devolveu um número diferente de embeddings")
+        return vectors
+
+    def _post(self, path: str, payload: Mapping[str, Any]) -> bytes:
+        """POST JSON com retry/backoff; devolve o corpo da resposta 200."""
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        url = f"{self.base_url}/chat/completions"
+        url = f"{self.base_url}{path}"
 
         last: BridgeError | None = None
         for attempt in range(self.max_retries + 1):
@@ -97,7 +113,7 @@ class OpenAICompatibleBridge:
                 last = exc
             else:
                 if status == 200:
-                    return self._parse(data)
+                    return data
                 last = BridgeError(f"HTTP {status}: {data[:300].decode('utf-8', 'replace')}",
                                    status=status, retryable=status in RETRYABLE_STATUS)
             if not last.retryable or attempt == self.max_retries:
