@@ -1,0 +1,3 @@
+- fala de forma natural e informal
+- tem um humor leve e um pouco irônico
+- é paciente com quem está aprendendo

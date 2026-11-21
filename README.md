@@ -35,6 +35,19 @@ O modelo padrão fica em `default_model` no JSON do provider. Para usar outro mo
 adicione ao `.configs/engine/<componente>.json` um `"models": {"groq": "...", "ollama": "..."}`
 (ou `"model": "..."` para valer em qualquer provider).
 
+## Conversando (CLI)
+
+```
+python -m src.cli --new "Ana"     # cria a persona a partir de .data/personas/persona_example
+python -m src.cli --list          # lista as personas
+python -m src.cli <uuid>          # conversa (/sair encerra)
+```
+
+Edite as descrições em `.data/personas/<uuid>/descriptions/`; elas são relidas a cada turno.
+Hoje o turno usa: descrições, `state.md`, `scene.json`, memória flash e as memórias pesquisáveis que
+forem registradas. Ainda não ligados: `primary_interpreter` (por enquanto a consulta de memória é o
+próprio texto do usuário), emoções, `notetaker`, `summary` e `consolidator`.
+
 ## Desenvolvimento
 
 ```

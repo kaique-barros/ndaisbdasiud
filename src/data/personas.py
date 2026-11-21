@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import shutil
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 from src.data.database import Database
+from src.utils.config import Paths, load_json
 
 ACTIVE = "active"
 ARCHIVED = "archived"
@@ -49,6 +51,28 @@ def _to_record(row) -> PersonaRecord:
         last_conversation_at=row["last_conversation_at"],
         metadata=json.loads(row["metadata"]),
     )
+
+
+TEMPLATE_ID = "persona_example"
+
+
+def create_persona(registry: "PersonaRegistry", paths: Paths, name: str,
+                   template: str = TEMPLATE_ID) -> PersonaRecord:
+    """Cria uma persona: copia a pasta-modelo para .data/personas/<uuid>/, grava o nome em
+    parameters.json e só então registra no global.db (falha na cópia não deixa registro órfão)."""
+    persona_id = str(uuid.uuid4())
+    target = paths.persona_dir(persona_id)
+    template_dir = paths.persona_dir(template)
+    if template_dir.is_dir():
+        shutil.copytree(template_dir, target)
+    else:
+        target.mkdir(parents=True)
+    params_path = target / "parameters.json"
+    params = load_json(params_path) if params_path.is_file() else {}
+    params["name"] = name
+    params_path.write_text(json.dumps(params, ensure_ascii=False, indent=2) + "\n",
+                           encoding="utf-8")
+    return registry.create(name, persona_id=persona_id)
 
 
 class PersonaRegistry:
