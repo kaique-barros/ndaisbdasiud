@@ -1,0 +1,1 @@
+# O interpretador primario recebe a entrada do usuario, e gera os inputs para iniciar as buscas na memoria, pensei em colocar ele para ja receer o estado emocional e mais algumas infos para que ele ja gere o tom da resposta

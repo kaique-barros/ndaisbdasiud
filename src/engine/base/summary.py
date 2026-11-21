@@ -1,0 +1,1 @@
+# a classe que vai lidar com a summarização da conversa, é realmente só um resumo a consolidação do conhecimento é em outra, essa é só para não perder o fio da meada, lembre de setar o scene.json e o state.md  
