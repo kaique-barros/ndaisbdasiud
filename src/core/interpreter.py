@@ -10,14 +10,13 @@
 # segue, só sem o refinamento do interpretador.
 from __future__ import annotations
 
-import json
-import re
 from dataclasses import dataclass, field
 from typing import Mapping, Sequence
 
 from src.core.actor import render
 from src.engine.main.primary_interpreter import PrimaryInterpreter
 from src.memory.flash import FlashMemory
+from src.utils.jsonx import extract_json_object
 from src.utils.logger import get_logger, get_prompt_logger
 
 MAX_QUERIES = 3
@@ -30,7 +29,6 @@ STORE_HELP = {
     "notes": "impressões e opiniões pessoais de {{name}} sobre pessoas, coisas e eventos",
 }
 
-_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -58,24 +56,10 @@ def fallback_interpretation(user_messages: Sequence[str], store_names: Sequence[
     return Interpretation({name: [text] for name in store_names} if text else {}, fallback=True)
 
 
-def _extract_json(raw: str) -> dict:
-    text = _FENCE.sub("", raw.strip()).strip()
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        start, end = text.find("{"), text.rfind("}")
-        if start < 0 or end <= start:
-            raise ValueError("a resposta do interpretador não contém JSON")
-        data = json.loads(text[start:end + 1])  # JSON cercado de texto
-    if not isinstance(data, dict):
-        raise ValueError("a resposta do interpretador deve ser um objeto JSON")
-    return data
-
-
 def parse_interpretation(raw: str, store_names: Sequence[str],
                          user_messages: Sequence[str] = ()) -> Interpretation:
     """Valida e normaliza a saída do modelo. Lança ValueError se não houver JSON utilizável."""
-    data = _extract_json(raw)
+    data = extract_json_object(raw)
 
     queries: dict[str, list[str]] = {}
     raw_queries = data.get("queries")

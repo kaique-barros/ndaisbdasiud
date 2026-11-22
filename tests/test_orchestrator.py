@@ -15,7 +15,10 @@ from src.data.database import Database
 from src.data.personas import PersonaRegistry, create_persona
 from src.engine.main.actor import Actor, ActorError
 from src.engine.model import Model
+from src.memory.events import EventsMemory
 from src.memory.flash import FlashMemory
+from src.memory.knowledge import KnowledgeMemory
+from src.memory.notes import NotesMemory
 from src.orchestrator import Orchestrator
 from src.utils.bridge import ChatResponse
 from src.utils.config import Config, ConfigError, Paths
@@ -118,6 +121,17 @@ class ActorTest(unittest.IsolatedAsyncioTestCase):
             shutdown_logging()
 
 
+class DownModel(FakeModel):
+    """Modelo fora do ar: toda chamada lança (e é registrada)."""
+
+    def __init__(self):
+        super().__init__([])
+
+    async def _complete(self, messages, params):
+        self.calls.append(messages)
+        raise ConnectionError("ollama fora do ar")
+
+
 INTERP_OK = json.dumps({"queries": {}, "tone": "caloroso", "emotion_delta": {"joy": 0.3}})
 
 
@@ -148,12 +162,18 @@ class OrchestratorTest(unittest.IsolatedAsyncioTestCase):
         shutdown_logging()
         self.tmp.cleanup()
 
-    def build(self, actor_replies=("Oi!",), interp_replies=None, stores=(), actor=None):
+    def build(self, actor_replies=("Oi!",), interp_replies=None, stores=(), actor=None,
+              extra=None, background=False):
         actor = actor or FakeModel(actor_replies)
         interp = FakeModel([INTERP_OK] * 10 if interp_replies is None else interp_replies)
-        orch = Orchestrator.build(self.record.id, self.config,
-                                  {"actor": actor, "primary_interpreter": interp}, stores)
+        models = {"actor": actor, "primary_interpreter": interp, **(extra or {})}
+        orch = Orchestrator.build(self.record.id, self.config, models, stores,
+                                  background=background)
         return orch, actor, interp
+
+    def marker(self, name):
+        with Database(self.paths.messages_db(self.record.id)) as db:
+            return FlashMemory(db).get_meta(name)
 
     async def test_two_turns_flash_emotions_registry_and_prompt(self):
         orch, actor, interp = self.build(["Oi, tudo bem!", "Que bom."])
@@ -233,6 +253,71 @@ class OrchestratorTest(unittest.IsolatedAsyncioTestCase):
         names = {p.name for p in (self.paths.persona_dir(self.record.id) / "memories").glob("*.db")}
         self.assertEqual(names, {"messages.db", "events.db", "knowledge.db", "notes.db"})
         orch.close()
+
+    def background_models(self, notes_reply=None):
+        notes = notes_reply or json.dumps({"notes": [{"block": 1, "text": "Fiquei muito feliz.",
+                                                      "subject": "o usuário", "importance": 0.8}]})
+        return {
+            "notetaker": FakeModel([notes] * 5),
+            "summary": FakeModel([json.dumps({"summary": "Resumo X", "state": "Feliz",
+                                              "scene": {"local": "sala"}})] * 5),
+            "consolidator": FakeModel([json.dumps({
+                "events": [{"text": "O usuário conversou com Ana em 2026-11-22."}],
+                "knowledge": [{"subject": "usuário", "relation": "conversou com", "object": "Ana"}],
+                "obsolete": []})] * 5)}
+
+    async def test_background_jobs_feed_memories_and_next_prompt(self):
+        extra = self.background_models()
+        orch, actor, _ = self.build(["r"] * 10, stores=None, extra=extra, background=True)
+        for i in range(3):  # 6 mensagens: só o notetaker (a cada 6) está devido
+            await orch.chat([f"oi {i}"])
+        await orch.pipeline.wait()
+        self.assertEqual((len(extra["notetaker"].calls), len(extra["summary"].calls)), (1, 0))
+        self.assertEqual(self.marker("notes_up_to"), 6)
+
+        await orch.chat(["oi 3"])  # 8 mensagens: o resumo (a cada 8) fica devido
+        await orch.pipeline.wait()
+        self.assertEqual(orch.files.summary, "Resumo X")
+        self.assertEqual((orch.files.state, orch.files.scene()), ("Feliz", "- local: sala"))
+
+        await orch.chat(["oi 4"])  # o próximo turno já enxerga resumo, estado e cenário
+        system = actor.calls[-1][0]["content"]
+        self.assertIn("Resumo X", system)
+        self.assertIn("Feliz", system)
+        self.assertIn("- local: sala", system)
+
+        await orch.finalize()  # fim da conversa: processa o que faltava
+        self.assertGreaterEqual(len(extra["consolidator"].calls), 1)
+        for name in ("notes_up_to", "summary_up_to", "consolidated_up_to"):
+            self.assertEqual(self.marker(name), 10, name)
+        with Database(self.paths.memory_db(self.record.id, "notes")) as db:
+            note = NotesMemory(db).list()[0]
+        self.assertEqual((note.text, note.meta["subject"], note.meta["importance"]),
+                         ("Fiquei muito feliz.", "o usuário", 0.8))
+        self.assertIn("joy", note.meta["emotions"])
+        with Database(self.paths.memory_db(self.record.id, "events")) as db:
+            self.assertEqual(EventsMemory(db).list()[0].text, "O usuário conversou com Ana em 2026-11-22.")
+        with Database(self.paths.memory_db(self.record.id, "knowledge")) as db:
+            self.assertEqual(KnowledgeMemory(db).list()[0].relation, "conversou com")
+
+    async def test_background_failure_never_breaks_the_chat(self):
+        extra = self.background_models()
+        down = DownModel()
+        extra["notetaker"] = down
+        orch, _, _ = self.build(["r"] * 10, stores=None, extra=extra, background=True)
+        for i in range(3):  # 6 mensagens: o notetaker é chamado e falha
+            self.assertEqual(await orch.chat([f"oi {i}"]), "r")  # o chat segue normal
+        await orch.pipeline.wait()
+        self.assertEqual(len(down.calls), 1)  # foi chamado de verdade...
+        self.assertEqual(self.marker("notes_up_to"), 0)  # ...falhou e não avançou o marcador
+        self.assertEqual(len(orch.flash.last()), 6)
+        orch.close()
+
+    async def test_background_can_be_disabled(self):
+        orch, _, _ = self.build(["r"], background=False)
+        self.assertIsNone(orch.pipeline)
+        await orch.chat(["oi"])
+        await orch.finalize()  # sem pipeline: só fecha
 
     async def test_empty_message_and_unknown_persona(self):
         orch, _, _ = self.build()
