@@ -22,6 +22,7 @@ class ActorContext:
     user_messages: Sequence[str]
     persona: str = ""    # descrições (personalidade, traços, aparência)
     emotions: str = ""   # estado emocional atual, já descrito em texto
+    tone: str = ""       # tom sugerido pelo interpretador para esta resposta
     state: str = ""      # state.md
     scene: str = ""      # scene.json já renderizado
     summary: str = ""    # resumo da conversa atual
@@ -48,7 +49,7 @@ class ActorPromptBuilder:
         gravar as mensagens do turno atual na flash, para a flash trazer só o passado."""
         values = {
             "name": ctx.persona_name, "persona": ctx.persona, "emotions": ctx.emotions,
-            "state": ctx.state, "scene": ctx.scene, "summary": ctx.summary,
+            "tone": ctx.tone, "state": ctx.state, "scene": ctx.scene, "summary": ctx.summary,
             "memory": ctx.memory,
         }
         user_text = "\n".join(m.strip() for m in ctx.user_messages if m.strip())

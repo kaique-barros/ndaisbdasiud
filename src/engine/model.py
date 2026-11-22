@@ -8,6 +8,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, Mapping, Sequence
 
+from src.data.rag import Embedder
 from src.utils.bridge import ChatResponse, OpenAICompatibleBridge
 from src.utils.config import Config
 from src.utils.logger import get_logger
@@ -18,6 +19,21 @@ Messages = Sequence[Mapping[str, str]]
 
 # parâmetros de geração que podem vir da config e ser sobrescritos por chamada
 GENERATION_KEYS = ("temperature", "max_tokens", "top_p", "stop", "seed")
+
+
+def resolve_provider(config: Config, engine_cfg: Mapping[str, Any] | None = None
+                     ) -> tuple[str, dict[str, Any]]:
+    """Provider: variável PERSONA_PROVIDER > campo "provider" do engine > "ollama"."""
+    provider = (os.environ.get("PERSONA_PROVIDER") or (engine_cfg or {}).get("provider")
+                or DEFAULT_PROVIDER)
+    return provider, {"name": provider, **config.provider(provider)}
+
+
+def make_embedder(config: Config, model_id: str) -> Embedder:
+    """Função de embeddings (endpoint /embeddings do provider atual) para os RAGs."""
+    _, provider_cfg = resolve_provider(config)
+    bridge = OpenAICompatibleBridge.from_provider_config(provider_cfg)
+    return lambda texts: bridge.embed_sync(model_id, texts)
 
 
 class Model(ABC):
@@ -67,8 +83,7 @@ class ChatModel(Model):
         Provider: variável PERSONA_PROVIDER > campo "provider" do engine > "ollama".
         Assim a mesma config roda local (ollama) ou na nuvem (groq) trocando só a variável."""
         engine_cfg = config.engine(name)
-        provider = os.environ.get("PERSONA_PROVIDER") or engine_cfg.get("provider") or DEFAULT_PROVIDER
-        provider_cfg = {"name": provider, **config.provider(provider)}
+        _, provider_cfg = resolve_provider(config, engine_cfg)
         return cls.from_configs(name, engine_cfg, provider_cfg, bridge)
 
     @classmethod

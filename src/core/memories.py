@@ -14,13 +14,15 @@ from src.utils.logger import get_logger, get_prompt_logger
 
 class MemoryManager:
     def __init__(self, stores: Sequence[MemoryStore], top_k: int = 5,
-                 timeout_s: float = 10.0) -> None:
+                 timeout_s: float = 10.0,
+                 per_store: Mapping[str, Mapping[str, float]] | None = None) -> None:
         names = [s.name for s in stores]
         if len(set(names)) != len(names):
             raise ValueError(f"nomes de memória duplicados: {names}")
         self.stores = {s.name: s for s in stores}
         self.top_k = top_k
         self.timeout_s = timeout_s
+        self.per_store = per_store or {}  # {"events": {"top_k": 3, "timeout_s": 5}, ...}
         self.log = get_logger("memories", "core")
         self.prompt_log = get_prompt_logger("memories", "core")
 
@@ -53,13 +55,15 @@ class MemoryManager:
 
     async def _one(self, name: str, query: str) -> tuple[str, list[str], str | None, float]:
         t0 = time.perf_counter()
+        cfg = self.per_store.get(name, {})
+        top_k, timeout_s = int(cfg.get("top_k", self.top_k)), float(cfg.get("timeout_s", self.timeout_s))
         try:
-            items = await asyncio.wait_for(self.stores[name].search(query, self.top_k),
-                                           timeout=self.timeout_s)
+            items = await asyncio.wait_for(self.stores[name].search(query, top_k),
+                                           timeout=timeout_s)
             return name, list(items), None, time.perf_counter() - t0
         except asyncio.TimeoutError:
             self.log.warning("timeout em %s (query=%r)", name, query)
-            return name, [], f"timeout após {self.timeout_s}s", time.perf_counter() - t0
+            return name, [], f"timeout após {timeout_s}s", time.perf_counter() - t0
         except Exception as exc:  # isolamento: uma memória quebrada não derruba as outras
             self.log.exception("erro em %s (query=%r)", name, query)
             return name, [], f"{type(exc).__name__}: {exc}", time.perf_counter() - t0

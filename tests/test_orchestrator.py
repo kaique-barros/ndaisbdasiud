@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import json
 import io
 import os
 import shutil
@@ -117,6 +118,23 @@ class ActorTest(unittest.IsolatedAsyncioTestCase):
             shutdown_logging()
 
 
+INTERP_OK = json.dumps({"queries": {}, "tone": "caloroso", "emotion_delta": {"joy": 0.3}})
+
+
+class SlowModel(FakeModel):
+    """Registra início/fim de cada chamada para provar que turnos não se intercalam."""
+
+    def __init__(self, replies, log):
+        super().__init__(replies)
+        self.events = log
+
+    async def _complete(self, messages, params):
+        self.events.append("start")
+        await asyncio.sleep(0.05)
+        self.events.append("end")
+        return await super()._complete(messages, params)
+
+
 class OrchestratorTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.tmp = TemporaryDirectory()
@@ -130,48 +148,99 @@ class OrchestratorTest(unittest.IsolatedAsyncioTestCase):
         shutdown_logging()
         self.tmp.cleanup()
 
-    def build(self, model, stores=()):
-        return Orchestrator.build(self.record.id, self.config, model, stores)
+    def build(self, actor_replies=("Oi!",), interp_replies=None, stores=(), actor=None):
+        actor = actor or FakeModel(actor_replies)
+        interp = FakeModel([INTERP_OK] * 10 if interp_replies is None else interp_replies)
+        orch = Orchestrator.build(self.record.id, self.config,
+                                  {"actor": actor, "primary_interpreter": interp}, stores)
+        return orch, actor, interp
 
-    async def test_two_turns_flash_registry_and_prompt(self):
-        model = FakeModel(["Oi, tudo bem!", "Que bom."])
-        orch = self.build(model)
+    async def test_two_turns_flash_emotions_registry_and_prompt(self):
+        orch, actor, interp = self.build(["Oi, tudo bem!", "Que bom."])
         self.assertEqual(await orch.chat(["Olá"]), "Oi, tudo bem!")
         self.assertEqual(await orch.chat(["Como vai?"]), "Que bom.")
 
-        first, second = model.calls
+        first, second = actor.calls
         self.assertNotIn("Olá", first[0]["content"])  # 1º turno: flash vazia
         self.assertIn("Você é Ana", first[0]["content"])
         self.assertIn("Curiosa, calorosa", first[0]["content"])  # descrições da persona
+        self.assertIn("caloroso", first[0]["content"])  # tom vindo do interpretador
+        self.assertIn("alegria", first[0]["content"])  # emoção já atualizada antes do actor
         self.assertIn("user: Olá", second[0]["content"])  # 2º turno enxerga o 1º
         self.assertIn("persona: Oi, tudo bem!", second[0]["content"])
         self.assertEqual(second[1]["content"], "Como vai?")
-        self.assertEqual([m.role for m in orch.flash.last()], ["user", "persona"] * 2)
+        self.assertEqual(len(interp.calls), 2)
+        self.assertIn("Emoções atuais", interp.calls[0][0]["content"])
+
+        saved = orch.flash.last()
+        self.assertEqual([m.role for m in saved], ["user", "persona"] * 2)
+        self.assertEqual(saved[0].emotion_delta, {"joy": 0.3})  # variação gravada com a mensagem
+        self.assertIsNone(saved[1].emotion_delta or None)
+        persisted = json.loads((self.paths.persona_dir(self.record.id) / "emotions.json").read_text())
+        self.assertGreater(persisted["state"]["joy"], 0.6)  # 0.15 + 0.3 + 0.3 (menos decaimento mínimo)
         self.assertIsNotNone(orch.registry.get(self.record.id).last_conversation_at)
         orch.close()
 
-    async def test_memory_searches_feed_prompt(self):
-        store, model = FakeStore(), FakeModel()
-        orch = self.build(model, [store])
-        await orch.chat(["chuva?"])
-        self.assertEqual(store.queries, ["chuva?"])
-        self.assertIn("## events\n- Ontem choveu.", model.calls[0][0]["content"])
+    async def test_interpreter_queries_feed_memory_search(self):
+        store = FakeStore()
+        reply = json.dumps({"queries": {"events": ["chuva ontem", "chuva ontem"], "outra": ["x"]},
+                            "tone": "", "emotion_delta": {}})
+        orch, actor, _ = self.build(interp_replies=[reply], stores=[store])
+        await orch.chat(["será que choveu?"])
+        self.assertEqual(store.queries, ["chuva ontem"])  # deduplicada; memória inexistente ignorada
+        self.assertIn("## events\n- Ontem choveu.", actor.calls[0][0]["content"])
         orch.close()
 
-    async def test_failed_turn_is_not_saved(self):
-        orch = self.build(FakeModel(["  "]))
+    async def test_bad_interpreter_output_falls_back_and_chat_survives(self):
+        store = FakeStore()
+        orch, actor, _ = self.build(interp_replies=["isto não é json"], stores=[store])
+        self.assertEqual(await orch.chat(["chuva?"]), "Oi!")
+        self.assertEqual(store.queries, ["chuva?"])  # fallback: texto do usuário
+        self.assertAlmostEqual(orch.emotions.values["joy"], 0.15, places=2)  # sem variação
+        orch.close()
+
+    async def test_disabled_interpreter_is_never_called(self):
+        cfg_path = self.paths.configs / "engine" / "primary_interpreter.json"
+        cfg_path.write_text('{"enabled": false}')
+        store = FakeStore()
+        orch, _, interp = self.build(interp_replies=[], stores=[store])
+        await orch.chat(["oi"])
+        self.assertEqual((interp.calls, store.queries), ([], ["oi"]))
+        orch.close()
+
+    async def test_failed_turn_is_not_saved_and_emotions_roll_back(self):
+        orch, _, _ = self.build(["  "])
         with self.assertRaises(ActorError):
             await orch.chat(["oi"])
         self.assertEqual(orch.flash.last(), [])
+        self.assertAlmostEqual(orch.emotions.values["joy"], 0.15, places=2)  # alegria +0.3 desfeita
+        orch.close()
+
+    async def test_concurrent_turns_are_serialized(self):
+        events = []
+        orch, _, _ = self.build(actor=SlowModel(["a", "b"], events))
+        await asyncio.gather(orch.chat(["1"]), orch.chat(["2"]))
+        self.assertEqual(events, ["start", "end", "start", "end"])
+        self.assertEqual([m.content for m in orch.flash.last()], ["1", "a", "2", "b"])
+        orch.close()
+
+    async def test_default_stores_are_real_one_db_each(self):
+        orch = Orchestrator.build(self.record.id, self.config,
+                                  {"actor": FakeModel(["ok"]), "primary_interpreter": FakeModel([INTERP_OK])},
+                                  stores=None)
+        self.assertEqual(list(orch.memory.stores), ["events", "knowledge", "notes"])
+        await orch.chat(["oi"])
+        names = {p.name for p in (self.paths.persona_dir(self.record.id) / "memories").glob("*.db")}
+        self.assertEqual(names, {"messages.db", "events.db", "knowledge.db", "notes.db"})
         orch.close()
 
     async def test_empty_message_and_unknown_persona(self):
-        orch = self.build(FakeModel())
+        orch, _, _ = self.build()
         with self.assertRaises(ValueError):
             await orch.chat(["  "])
         orch.close()
         with self.assertRaises(ConfigError):
-            Orchestrator.build("nao-existe", self.config, FakeModel())
+            Orchestrator.build("nao-existe", self.config, {"actor": FakeModel()})
 
 
 class PersonaCreationAndCliTest(unittest.TestCase):

@@ -42,8 +42,13 @@ class Paths:
     def persona_dir(self, persona_id: str) -> Path:
         return self.data / "personas" / persona_id
 
+    def memory_db(self, persona_id: str, name: str) -> Path:
+        """Um banco por memória (messages, events, knowledge, notes): assim as buscas
+        paralelas não disputam o mesmo lock de conexão."""
+        return self.persona_dir(persona_id) / "memories" / f"{name}.db"
+
     def messages_db(self, persona_id: str) -> Path:
-        return self.persona_dir(persona_id) / "memories" / "messages.db"
+        return self.memory_db(persona_id, "messages")
 
 
 def load_json(path: Path) -> dict[str, Any]:

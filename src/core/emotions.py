@@ -130,6 +130,13 @@ class EmotionState:
         net = {e: round(self.values[e] - before[e], 3) for e in self.values}
         return {e: d for e, d in net.items() if abs(d) >= 0.01}
 
+    def snapshot(self) -> tuple[dict[str, float], datetime]:
+        return dict(self.values), self.updated_at
+
+    def restore(self, snap: tuple[dict[str, float], datetime]) -> None:
+        """Desfaz alterações (usado quando o turno falha depois de mexer nas emoções)."""
+        self.values, self.updated_at = dict(snap[0]), snap[1]
+
     # --- leitura ---
 
     def level_name(self, emotion: str, value: float | None = None) -> str:

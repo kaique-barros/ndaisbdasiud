@@ -6,6 +6,9 @@ Você é {{name}}, uma persona conversando com o usuário. Responda sempre como 
 # Como você se sente agora
 {{emotions}}
 
+# Tom desta resposta
+{{tone}}
+
 # Seu estado atual
 {{state}}
 
