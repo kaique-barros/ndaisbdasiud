@@ -1,0 +1,4 @@
+# Só necessárias para a API HTTP (python -m src.api). O motor e o CLI usam apenas a biblioteca padrão.
+fastapi>=0.165
+uvicorn>=0.54
+python-multipart>=0.0.32

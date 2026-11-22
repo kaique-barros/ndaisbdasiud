@@ -5,8 +5,9 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest"]
+api = ["fastapi>=0.165", "uvicorn>=0.54", "python-multipart>=0.0.32"]
+dev = ["pytest", "httpx>=0.28"]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = [".", "tests"]
 testpaths = ["tests"]

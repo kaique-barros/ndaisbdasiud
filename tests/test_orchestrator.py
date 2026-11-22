@@ -23,18 +23,8 @@ from src.orchestrator import Orchestrator
 from src.utils.bridge import ChatResponse
 from src.utils.config import Config, ConfigError, Paths
 from src.utils.logger import shutdown_logging
+from helpers import INTERP_OK, REPO, DownModel, FakeModel, make_root
 
-REPO = Path(__file__).resolve().parents[1]
-
-
-class FakeModel(Model):
-    def __init__(self, replies=("Oi!",)):
-        super().__init__("fake")
-        self.replies, self.calls = list(replies), []
-
-    async def _complete(self, messages, params):
-        self.calls.append([dict(m) for m in messages])
-        return ChatResponse(text=self.replies.pop(0))
 
 
 class FakeStore:
@@ -46,14 +36,6 @@ class FakeStore:
     async def search(self, query, top_k):
         self.queries.append(query)
         return ["Ontem choveu."]
-
-
-def make_root(tmp: str) -> Paths:
-    root = Path(tmp)
-    shutil.copytree(REPO / ".configs", root / ".configs")
-    shutil.copytree(REPO / ".data" / "personas" / "persona_example",
-                    root / ".data" / "personas" / "persona_example")
-    return Paths(root)
 
 
 class RenderTest(unittest.TestCase):
@@ -119,20 +101,6 @@ class ActorTest(unittest.IsolatedAsyncioTestCase):
                 await Actor(FakeModel(["   "])).respond([{"role": "user", "content": "x"}])
             self.assertEqual(await Actor(FakeModel([" fala "])).respond([]), "fala")
             shutdown_logging()
-
-
-class DownModel(FakeModel):
-    """Modelo fora do ar: toda chamada lança (e é registrada)."""
-
-    def __init__(self):
-        super().__init__([])
-
-    async def _complete(self, messages, params):
-        self.calls.append(messages)
-        raise ConnectionError("ollama fora do ar")
-
-
-INTERP_OK = json.dumps({"queries": {}, "tone": "caloroso", "emotion_delta": {"joy": 0.3}})
 
 
 class SlowModel(FakeModel):
