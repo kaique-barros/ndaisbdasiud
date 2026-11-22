@@ -57,6 +57,42 @@ class BridgeTest(LoggedTestCase):
         self.assertNotIn("max_tokens", payload)  # None não é enviado
         self.assertEqual((r.text, r.finish_reason, r.usage), ("oi", "stop", {"total_tokens": 7}))
 
+    async def test_sends_own_user_agent_not_urllibs_default(self):
+        """Regressão: com o UA padrão do urllib a Groq (Cloudflare) responde 403 / error code 1010."""
+        bridge, t = self.make((200, ok_body()))
+        await bridge.chat("m", [])
+        ua = t.calls[0][1]["User-Agent"]
+        self.assertTrue(ua.startswith("persona-engine/"))
+        self.assertNotIn("urllib", ua)
+
+    def test_real_transport_puts_user_agent_on_the_wire(self):
+        """Sobe um servidor HTTP de verdade e confere o cabeçalho que o urllib realmente envia."""
+        import threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        seen = {}
+
+        class H(BaseHTTPRequestHandler):
+            def do_POST(self):
+                seen["ua"] = self.headers["User-Agent"]
+                self.rfile.read(int(self.headers["Content-Length"]))
+                out = ok_body("ok")
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(out)))
+                self.end_headers()
+                self.wfile.write(out)
+
+            def log_message(self, *a):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            bridge = OpenAICompatibleBridge(f"http://127.0.0.1:{server.server_port}/v1")
+            self.assertEqual(bridge.chat_sync("m", []).text, "ok")
+        finally:
+            server.shutdown()
+        self.assertTrue(seen["ua"].startswith("persona-engine/"), seen["ua"])
+
     async def test_no_auth_header_without_key(self):
         t = FakeTransport((200, ok_body()))
         bridge = OpenAICompatibleBridge("http://x", None, transport=t)

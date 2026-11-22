@@ -18,6 +18,7 @@ from src.utils.logger import get_logger
 Transport = Callable[[str, Mapping[str, str], bytes, float], tuple[int, bytes]]
 
 RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
+USER_AGENT = "persona-engine/0.1 (+https://github.com/kaique-barros/ndaisbdasiud)"
 
 
 class BridgeError(Exception):
@@ -100,7 +101,10 @@ class OpenAICompatibleBridge:
     def _post(self, path: str, payload: Mapping[str, Any]) -> bytes:
         """POST JSON com retry/backoff; devolve o corpo da resposta 200."""
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
+        # User-Agent próprio: o padrão do urllib ("Python-urllib/3.x") é bloqueado pelo Cloudflare
+        # que fica na frente de provedores como a Groq (HTTP 403, "error code: 1010").
+        headers = {"Content-Type": "application/json", "Accept": "application/json",
+                   "User-Agent": USER_AGENT}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         url = f"{self.base_url}{path}"
