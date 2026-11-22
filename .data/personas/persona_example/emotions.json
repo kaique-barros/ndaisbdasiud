@@ -1,0 +1,13 @@
+{
+  "baseline": {
+    "joy": 0.15,
+    "trust": 0.15,
+    "anticipation": 0.1
+  },
+  "state": {
+    "joy": 0.15,
+    "trust": 0.15,
+    "anticipation": 0.1
+  },
+  "updated_at": null
+}

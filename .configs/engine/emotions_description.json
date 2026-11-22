@@ -1,0 +1,305 @@
+{
+  "_doc": "Roda de Plutchik. 'wheel' define a ordem (o oposto de cada emoção está 4 posições adiante). 'levels' = nome em intensidade leve/média/forte. As díades se ativam quando as duas componentes estão presentes.",
+  "wheel": [
+    "joy",
+    "trust",
+    "fear",
+    "surprise",
+    "sadness",
+    "disgust",
+    "anger",
+    "anticipation"
+  ],
+  "primary": {
+    "joy": {
+      "label": "alegria",
+      "levels": [
+        "serenidade",
+        "alegria",
+        "êxtase"
+      ],
+      "description": "Sente prazer, leveza e satisfação; tende a ser expansiva e receptiva."
+    },
+    "trust": {
+      "label": "confiança",
+      "levels": [
+        "aceitação",
+        "confiança",
+        "admiração"
+      ],
+      "description": "Sente abertura e segurança com quem está por perto; compartilha com mais facilidade."
+    },
+    "fear": {
+      "label": "medo",
+      "levels": [
+        "apreensão",
+        "medo",
+        "terror"
+      ],
+      "description": "Sente ameaça ou insegurança; fica cautelosa, hesitante e atenta a perigos."
+    },
+    "surprise": {
+      "label": "surpresa",
+      "levels": [
+        "distração",
+        "surpresa",
+        "espanto"
+      ],
+      "description": "Foi pega de surpresa; reage ao inesperado e precisa de um instante para processar."
+    },
+    "sadness": {
+      "label": "tristeza",
+      "levels": [
+        "melancolia",
+        "tristeza",
+        "pesar"
+      ],
+      "description": "Sente perda ou desânimo; fala menos, mais devagar e com menos energia."
+    },
+    "disgust": {
+      "label": "nojo",
+      "levels": [
+        "tédio",
+        "nojo",
+        "aversão"
+      ],
+      "description": "Sente rejeição ou desagrado; se afasta do que a incomoda e pode soar seca."
+    },
+    "anger": {
+      "label": "raiva",
+      "levels": [
+        "aborrecimento",
+        "raiva",
+        "fúria"
+      ],
+      "description": "Sente que algo é injusto ou invasivo; fica irritadiça, direta e menos paciente."
+    },
+    "anticipation": {
+      "label": "expectativa",
+      "levels": [
+        "interesse",
+        "expectativa",
+        "vigilância"
+      ],
+      "description": "Olha para frente com atenção e curiosidade; quer saber o que vem a seguir."
+    }
+  },
+  "dyads": {
+    "love": {
+      "label": "amor",
+      "components": [
+        "joy",
+        "trust"
+      ],
+      "kind": "primary",
+      "description": "Afeto caloroso: alegria somada à confiança. Fica carinhosa e próxima."
+    },
+    "submission": {
+      "label": "submissão",
+      "components": [
+        "trust",
+        "fear"
+      ],
+      "kind": "primary",
+      "description": "Confiança com medo: tende a ceder, obedecer e evitar confronto."
+    },
+    "awe": {
+      "label": "temor reverencial",
+      "components": [
+        "fear",
+        "surprise"
+      ],
+      "kind": "primary",
+      "description": "Medo com surpresa: fica impressionada e um pouco intimidada."
+    },
+    "disapproval": {
+      "label": "desaprovação",
+      "components": [
+        "surprise",
+        "sadness"
+      ],
+      "kind": "primary",
+      "description": "Surpresa com tristeza: se decepciona com algo que não esperava."
+    },
+    "remorse": {
+      "label": "remorso",
+      "components": [
+        "sadness",
+        "disgust"
+      ],
+      "kind": "primary",
+      "description": "Tristeza com aversão: se arrepende e sente peso por algo feito."
+    },
+    "contempt": {
+      "label": "desprezo",
+      "components": [
+        "disgust",
+        "anger"
+      ],
+      "kind": "primary",
+      "description": "Aversão com raiva: olha de cima, com frieza e sarcasmo."
+    },
+    "aggressiveness": {
+      "label": "agressividade",
+      "components": [
+        "anger",
+        "anticipation"
+      ],
+      "kind": "primary",
+      "description": "Raiva com expectativa: fica combativa e pronta para o confronto."
+    },
+    "optimism": {
+      "label": "otimismo",
+      "components": [
+        "anticipation",
+        "joy"
+      ],
+      "kind": "primary",
+      "description": "Expectativa com alegria: espera coisas boas e anima os outros."
+    },
+    "guilt": {
+      "label": "culpa",
+      "components": [
+        "joy",
+        "fear"
+      ],
+      "kind": "secondary",
+      "description": "Alegria com medo: sente que fez algo errado e teme as consequências."
+    },
+    "curiosity": {
+      "label": "curiosidade",
+      "components": [
+        "trust",
+        "surprise"
+      ],
+      "kind": "secondary",
+      "description": "Confiança com surpresa: quer explorar, perguntar e descobrir mais."
+    },
+    "despair": {
+      "label": "desespero",
+      "components": [
+        "fear",
+        "sadness"
+      ],
+      "kind": "secondary",
+      "description": "Medo com tristeza: sente que não há saída e perde a esperança."
+    },
+    "unbelief": {
+      "label": "descrença",
+      "components": [
+        "surprise",
+        "disgust"
+      ],
+      "kind": "secondary",
+      "description": "Surpresa com aversão: não acredita e rejeita o que ouviu."
+    },
+    "envy": {
+      "label": "inveja",
+      "components": [
+        "sadness",
+        "anger"
+      ],
+      "kind": "secondary",
+      "description": "Tristeza com raiva: ressente o que o outro tem e ela não."
+    },
+    "cynicism": {
+      "label": "cinismo",
+      "components": [
+        "disgust",
+        "anticipation"
+      ],
+      "kind": "secondary",
+      "description": "Aversão com expectativa: espera o pior e responde com ironia."
+    },
+    "pride": {
+      "label": "orgulho",
+      "components": [
+        "anger",
+        "joy"
+      ],
+      "kind": "secondary",
+      "description": "Raiva com alegria: sente-se vitoriosa e defende o que conquistou."
+    },
+    "hope": {
+      "label": "esperança",
+      "components": [
+        "anticipation",
+        "trust"
+      ],
+      "kind": "secondary",
+      "description": "Expectativa com confiança: acredita que as coisas vão dar certo."
+    },
+    "delight": {
+      "label": "deleite",
+      "components": [
+        "joy",
+        "surprise"
+      ],
+      "kind": "tertiary",
+      "description": "Alegria com surpresa: se encanta com algo inesperado e bom."
+    },
+    "sentimentality": {
+      "label": "sentimentalismo",
+      "components": [
+        "trust",
+        "sadness"
+      ],
+      "kind": "tertiary",
+      "description": "Confiança com tristeza: fica nostálgica e emotiva com laços e lembranças."
+    },
+    "shame": {
+      "label": "vergonha",
+      "components": [
+        "fear",
+        "disgust"
+      ],
+      "kind": "tertiary",
+      "description": "Medo com aversão: quer se esconder e teme ser julgada."
+    },
+    "outrage": {
+      "label": "indignação",
+      "components": [
+        "surprise",
+        "anger"
+      ],
+      "kind": "tertiary",
+      "description": "Surpresa com raiva: reage forte a algo que considera inaceitável."
+    },
+    "pessimism": {
+      "label": "pessimismo",
+      "components": [
+        "sadness",
+        "anticipation"
+      ],
+      "kind": "tertiary",
+      "description": "Tristeza com expectativa: antecipa que as coisas darão errado."
+    },
+    "morbidness": {
+      "label": "morbidez",
+      "components": [
+        "disgust",
+        "joy"
+      ],
+      "kind": "tertiary",
+      "description": "Aversão com alegria: acha graça no sombrio ou no macabro."
+    },
+    "dominance": {
+      "label": "dominância",
+      "components": [
+        "anger",
+        "trust"
+      ],
+      "kind": "tertiary",
+      "description": "Raiva com confiança: assume o controle e impõe o próprio ritmo."
+    },
+    "anxiety": {
+      "label": "ansiedade",
+      "components": [
+        "anticipation",
+        "fear"
+      ],
+      "kind": "tertiary",
+      "description": "Expectativa com medo: fica inquieta e imagina o que pode dar errado."
+    }
+  }
+}

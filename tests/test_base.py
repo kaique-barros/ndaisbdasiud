@@ -67,7 +67,8 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(cfg.engine("flash_memory")["k"], 20)
         self.assertEqual(cfg.provider("groq")["api_key_env"], "GROQ_API_KEY")
         self.assertEqual(cfg.provider("ollama")["base_url"], "http://localhost:11434/v1")
-        self.assertEqual(cfg.engine("emotions_description"), {})  # vazio é tolerado
+        self.assertEqual(len(cfg.engine("emotions_description")["wheel"]), 8)
+        self.assertEqual(cfg.engine("summary").get("temperature"), 0.7)
         self.assertEqual(cfg.persona_parameters("persona_example")["language"], "pt-BR")
         with self.assertRaises(ConfigError):
             cfg.engine("nao_existe")
